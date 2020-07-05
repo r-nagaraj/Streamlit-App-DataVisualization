@@ -1,154 +1,117 @@
 # Core Pkgs
-import streamlit as st 
+import streamlit as st
 
 # EDA Pkgs
-import pandas as pd 
-import numpy as np 
-
+import numpy as np
+import pandas as pd
 
 # Data Viz Pkg
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use("Agg")
-import seaborn as sns 
+import seaborn as sns
 
-# model pkgs
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 
 
-
 def main():
-	"""Demo for Semi Automated ML App with Streamlit """
 
-	activities = ["EDA","Plots", "Prediction"]	
-	choice = st.sidebar.selectbox("Select Activities",activities)
+    #df = load_data()
+    data = st.file_uploader("Upload a Dataset", type=["csv", "txt"])
+    if data is not None:
+        df = pd.read_csv(data)
+        page = st.sidebar.selectbox("Choose a page", ['Homepage', 'Exploration', 'Plots', 'Prediction'])
 
-	if choice == 'EDA':
-		st.subheader("Exploratory Data Analysis")
+        if page == 'Homepage':
+            st.title('Wine Alcohol Class Prediction')
+            st.text('Select a page in the sidebar')
+            st.dataframe(df)
+        elif page == 'Exploration':
+            st.title('Explore the Wine Data-set')
+            if st.checkbox("Show Shape"):
+                st.dataframe(df.shape)
 
-		data = st.file_uploader("Upload a Dataset", type=["csv", "txt"])
-		if data is not None:
-			df = pd.read_csv(data)
-			st.dataframe(df.head())
-			
+            if st.checkbox("Show Columns"):
+                all_columns = df.columns.to_list()
+                st.dataframe(all_columns)
 
-			if st.checkbox("Show Shape"):
-				st.write(df.shape)
+            if st.checkbox('Show column descriptions'):
+                st.dataframe(df.describe())
 
-			if st.checkbox("Show Columns"):
-				all_columns = df.columns.to_list()
-				st.write(all_columns)
+            if st.checkbox("Show Selected Columns"):
+                selected_columns = st.multiselect("Select Columns",all_columns)
+                new_df = df[selected_columns]
+                st.dataframe(new_df)
 
-			if st.checkbox("Summary"):
-				st.write(df.describe())
+            if st.checkbox("Show Value Counts"):
+                st.dataframe(df.iloc[:,-1].value_counts())
+                        
+            st.markdown('### Analysing column relations')
+            st.text('Correlations:')
+            fig, ax = plt.subplots(figsize=(10,10))
+            sns.heatmap(df.corr(), annot=True, ax=ax)
+            st.pyplot()
+            st.text('Effect of the different classes')
+            sns.pairplot(df, vars=['magnesium', 'flavanoids', 'nonflavanoid_phenols', 'proline'], hue='alcohol')
+            st.pyplot()
 
-			if st.checkbox("Show Selected Columns"):
-				selected_columns = st.multiselect("Select Columns",all_columns)
-				new_df = df[selected_columns]
-				st.dataframe(new_df)
+        elif page == 'Plots':
+            st.subheader("Data Visualization")
+            st.title('Plots')
+            if st.checkbox("Show Value Counts"):
+                st.write(df.iloc[:,-1].value_counts().plot(kind='bar'))
+                st.pyplot()
+            # Customizable Plot
+            all_columns_names = df.columns.tolist()
+            type_of_plot = st.selectbox("Select Type of Plot",["area","bar","line","hist","box","kde"])
+            selected_columns_names = st.multiselect("Select Columns To Plot",all_columns_names)
 
-			if st.checkbox("Show Value Counts"):
-				st.write(df.iloc[:,-1].value_counts())
+            if st.button("Generate Plot"):
+                st.success("Generating Customizable Plot of {} for {}".format(type_of_plot,selected_columns_names))
+                # Plot By Streamlit
+                if type_of_plot == 'area':
+                    cust_data = df[selected_columns_names]
+                    st.area_chart(cust_data)
+                elif type_of_plot == 'bar':
+                    cust_data = df[selected_columns_names]
+                    st.bar_chart(cust_data)
+                elif type_of_plot == 'line':
+                    cust_data = df[selected_columns_names]
+                    st.line_chart(cust_data)
+                # Custom Plot
+                elif type_of_plot:
+                    cust_plot= df[selected_columns_names].plot(kind=type_of_plot)
+                    st.write(cust_plot)
+                    st.pyplot()
 
-			if st.checkbox("Correlation Plot(Matplotlib)"):
-				plt.matshow(df.corr())
-				st.pyplot()
-
-			if st.checkbox("Correlation Plot(Seaborn)"):
-				st.write(sns.heatmap(df.corr(),annot=True))
-				st.pyplot()
-
-
-			if st.checkbox("Pie Plot"):
-				all_columns = df.columns.to_list()
-				column_to_plot = st.selectbox("Select 1 Column",all_columns)
-				pie_plot = df[column_to_plot].value_counts().plot.pie(autopct="%1.1f%%")
-				st.write(pie_plot)
-				st.pyplot()
+        else:
+            st.title('Modelling')
+            model, accuracy = train_model(df)
+            st.write('Accuracy: ' + str(accuracy))
+            st.markdown('### Make prediction')
+            st.dataframe(df)
+            row_number = st.number_input('Select row', min_value=0, max_value=len(df)-1, value=0)
+            st.markdown('#### Predicted')
+            st.text(model.predict(df.drop(['alcohol'], axis=1).loc[row_number].values.reshape(1, -1))[0])
 
 
+@st.cache(allow_output_mutation=True)
+def train_model(df):
+    X = np.array(df.drop(['alcohol'], axis=1))
+    y= np.array(df['alcohol'])
 
-	elif choice == 'Plots':
-		st.subheader("Data Visualization")
-		data = st.file_uploader("Upload a Dataset", type=["csv", "txt", "xlsx"])
-		if data is not None:
-			df = pd.read_csv(data)
-			st.dataframe(df.head())
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+    model = RandomForestClassifier()
+    model.fit(X_train, y_train)
 
-			if st.checkbox("Show Value Counts"):
-				st.write(df.iloc[:,-1].value_counts().plot(kind='bar'))
-				st.pyplot()
-		
-			# Customizable Plot
+    return model, model.score(X_test, y_test)
 
-			all_columns_names = df.columns.tolist()
-			type_of_plot = st.selectbox("Select Type of Plot",["area","bar","line","hist","box","kde"])
-			selected_columns_names = st.multiselect("Select Columns To Plot",all_columns_names)
-
-			if st.button("Generate Plot"):
-				st.success("Generating Customizable Plot of {} for {}".format(type_of_plot,selected_columns_names))
-
-				# Plot By Streamlit
-				if type_of_plot == 'area':
-					cust_data = df[selected_columns_names]
-					st.area_chart(cust_data)
-
-				elif type_of_plot == 'bar':
-					cust_data = df[selected_columns_names]
-					st.bar_chart(cust_data)
-
-				elif type_of_plot == 'line':
-					cust_data = df[selected_columns_names]
-					st.line_chart(cust_data)
-
-				# Custom Plot 
-				elif type_of_plot:
-					cust_plot= df[selected_columns_names].plot(kind=type_of_plot)
-					st.write(cust_plot)
-					st.pyplot()
-
-	elif choice == 'Prediction':
-		st.subheader("Data Prediction")
-		data = st.file_uploader("Upload a Dataset", type=["csv", "txt", "xlsx"])
-		if data is not None:
-			df = pd.read_csv(data)
-			st.dataframe(df.head())
-
-			if st.checkbox("Dependent_Variable"):
-				all_columns_names_1 = df.columns.to_list()
-				selected_columns_names_1 = st.selectbox("Select 1 Column",all_columns_names_1)
-				#selected_columns_names_2 = df[selected_columns_names_1]
-				st.write(selected_columns_names_1)
-				#st.success(selected_columns_names_2)
-				
-				if st.button("Generate Prediction"):
-					st.title('Modelling')
-					model, accuracy = train_model(df, selected_columns_names_1)
-					st.write('Accuracy' + str(accuracy))
-					st.markdown('### Make prediction')
-					st.dataframe(df)
-					row_number = st.number_input('Select row', min_value=0, max_value=len(df)-1, value=0)
-					st.markdown('#### Predicted')
-					#st.write(df.drop([selected_columns_names_1], axis=1).loc[row_number].values.reshape(1, -1))[0]
-					st.text(model.predict(df.drop([selected_columns_names_1], axis=1).loc[row_number].values.reshape(1, -1))[0])
-@st.cache
-def train_model(df, selected_columns_names_1):
-	#st.write(selected_columns_names_1)
-	#st.success(df)
-	X = np.array(df.drop([selected_columns_names_1], axis=1))
-	#y= np.array(df([selected_columns_names_1]))
-	y= np.array(df[selected_columns_names_1])
-
-	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-	model = RandomForestClassifier()
-	model.fit(X_train, y_train)
-
-	return model, model.score(X_test, y_test)
-            
+#@st.cache
+#def load_data():
+ #   return pd.read_csv('https://archive.ics.uci.edu/ml/machine-learning-databases/wine/wine.data', names=['alcohol', 'malic_acid', 'ash', 'alcalinity_of_ash', 'magnesium', 'total_phenols','flavanoids', 'nonflavanoid_phenols' ,'proanthocyanins', 'color_intensity', 'hue', 'OD280/OD315_of_diluted_wines', 'proline'], delimiter=",", index_col=False)
 
 
 if __name__ == '__main__':
-	main()
+    main()
